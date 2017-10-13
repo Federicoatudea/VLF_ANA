@@ -1,0 +1,170 @@
+### FP, 171013 ###
+### summary of tools to run the preliminary tests and summary of results.
+### Preliminary analysis of compressed spectra in SSSFDM model. Summary.
+### MF=100, Deltam==MF-MS: 10,5,3,2,1
+### MF=150, Deltam= 5,3
+### Process (mg): 
+
+mport model SimplifiedDMSSSFDM -modelname
+define p g d1 d1bar d2 d2bar d3 d3bar u1 u1bar u2 u2bar
+define j g d1 d1bar d2 d2bar d3 d3bar u1 u1bar u2 u2bar
+generate p p > fre frebar j, (fre > e2 ss), (frebar > e2bar ss)
+output FFjll -f
+shell cp -f direcorio_con_cards/param_card.dat FFjll/Cards/param_card.dat
+shell cp -f direcorio_con_cards/delphes_card.dat FFjll/Cards/delphes_card_default.dat
+shell sed -e 's/False  = cut/True  = cut/g' -e 's/10.0  = ptl/1.0   = ptl/g' FFjll/Cards/run_card_default.dat > FFjll/Cards/run_card.dat
+set nb_core 16
+launch FFjll 
+1
+3
+
+### param_card.dat created w/SPheno. BR(F->S mu)=1. 
+### run_card.dat: no merging, no cuts in muons. Most relevant parameters:
+ 0 = ickkw            ! 0 no matching, 1 MLM, 2 CKKW matching
+ 0.0   = xqcut   ! minimum kt jet measure between partons
+   True  = cut_decays    ! Cut decay products 
+ 20.0  = ptj       ! minimum pt for the jets 
+ 0.0  = ptb       ! minimum pt for the b 
+ 10.0  = pta       ! minimum pt for the photons 
+ -1.0   = ptl       ! minimum pt for the charged leptons     *********
+ -1.0  = ptjmax    ! maximum pt for the jets
+
+### delphes_card.dat: [reference]
+  # efficiency formula for muons
+  set EfficiencyFormula {                                     (pt <= 3.0)                * (0.00) +
+                                           (abs(eta) <= 2.1) * (pt > 3 && pt <= 10.0) * (0.9) +
+                                           (abs(eta) <= 1.5) * (pt > 10.0)                * (0.95) +
+                         (abs(eta) > 1.5 && abs(eta) <= 2.4) * (pt > 10.0)                * (0.95) +
+                         (abs(eta) > 2.4)                                                 * (0.00)}
+}
+
+
+### Preliminary analysis:
+### Carlos trigger: monojet. Q: what can we change here? whats the range? MET>110? Reference.
+
+### Analysis of significance (example):
+### significance1.cc 
+...
+ sgnal.open("signal200197total.dat");
+ mcw.open("wjetstotal.dat");
+ mctop.open("singletoptotal.dat");
+ ssb.open("significance200197.dat");
+
+ double muonptcut[10]={4.0,6.0,6.0,8.0,10.0,12.0,15.0,20.0,24.0,28.0}; // cut muonpt<muonptcut
+ int njetscut[4]={1,2,3,4}; //dont use this cut (?) doesnt seem to be needed.
+ double lptcut[6]={50.0,100.0,150.0,200.0,250.0,300.0};  // lpt>lptcut
+ double metcut[5]={50.0,100.0,150.0,200.0,300.0};  //  met>metcut
+ double mtcut[10]={0.0,2.0,4.0,8.0,12.0,16.0,20.0,30.0,40.0,60.0};  // mt>mtcut
+ double dphicut[6]={0.0,0.5,1.0,1.5,2.0,3.0};   // |dphi_mumet-pi| > dphicut
+ double dphijetmetcut[8]={0.1,0.2,0.4,0.6,1.0,1.5,2.0,3.0};  // cuts high |dphi_jetmet-pi|<dphijetmetcut, selects backtoback jetmet
+...
+
+### scan.cc
+...
+      if (Numjets>0){
+        cutflow[3]++;
+        for (int i1=0;i1<10;i1++){ //loop over pt cuts
+          if (muonpointer->PT<muonptcut[i1]) {
+            scan1[i1]++;
+            //for (int i2=0;i2<4;i2++){ //loop over njets cuts
+            //  if (Numjets<=njetscut[i2]) {
+            for (int i2=0;i2<8;i2++){ //loop over dphijetmet cuts
+              if (fabs(dphi_jetmet-pi)<=dphijetmetcut[i2]) {
+                scan2[i1][i2]++;
+                for (int i3=0;i3<6;i3++){ //loop leading jet pt cuts
+                  if (leadingpt>=lptcut[i3]) {
+                    scan3[i1][i2][i3]++;
+                    for (int i4=0;i4<5;i4++){ //loop over met cuts
+                      if (metpointer->MET>=metcut[i4]) {
+                        scan4[i1][i2][i3][i4]++;
+                        for (int i5=0;i5<10;i5++){ //loop over mt cuts
+                          if (mt_mumet>=mtcut[i5]) {
+                            scan5[i1][i2][i3][i4][i5]++;
+                            for (int i6=0;i6<6;i6++){ //loop over dphi cuts
+                              if (fabs(dphi_mumet-pi)>=dphicut[i6]) {
+                                scan6[i1][i2][i3][i4][i5][i6]++;
+
+
+[fpahlen@dzero vlf_significance]$ cat README 
+### Carlos Avila, 29.9.17
+
+Envío los programas que reporté esta mañana.
+
+1)      Scan.cc itera sobre 6 variables para establecer el número de eventos que pasa cada corte
+        Ustede pueden editar el programa y ver los cortes que se consideraron y pueden cambiar los valores. 
+        Algo que haré también la semana entrante, en vista que las significancias que les envié están cerca a valores límites de los cortes.
+
+2)      Scanwjes.com.dat corre el programa scan. Lo corren con $ source scanwjets.com.dat  1 183(o le quitan la extensión .dat).
+         el número 1 es el primer archivo .root y 183 el último número .root considerado.
+
+Este programa hace los cortes sobre cada .root de entrada y escribe un archivo .txt con el número de eventos de salida después de cada cort
+        Si hay 183 archivos .root genera 183 archivos .txt con número de eventos después de los cortes. Cada archivo .txt tiene 72000 línea
+        cada línea corresponde a un conjunto específico de cortes.
+
+3)      El programa sumwevents.cc se corre con $root -l sumwevents.cc  y sirve para sumar los eventos de los 183 archivos para consolidar la información en un archivo con totales.
+
+4)      El programa significance1.cc se corre con $root -l significance1.cc  y calcula la significancia para cada set de cortes específicos.
+        Calcula la significancia para los 72000 casos considerados en el scan. 
+        Luego ordena el archivo de salida para reportar en la primera línea la mayor significancia encontrada que tenga backgrounds diferentes de cero.
+
+### results obtained in first week of Oct.
+### with the cuts defined above, best 5 scenarios for MF=100, XS=332 fb. @L=100/fb=~> ns/150,nwj*90,nt*115.
+### Deltam=10:
+
+mupt10 dphijetmet2 ljetpt50 met50 mt0 dphi-pi1.5 1.80575 0.873178 0.526021 0.526021 0.612863 0.613184 0.612926 0.612926 0.612926 s/sqrt(s+b)=0.684673 nsignal=5415; nwjtes=3197 ; ntop=256
+mupt10 dphijetmet2 ljetpt50 met100 mt0 dphi-pi1.5 1.80575 0.873178 0.526021 0.526021 0.612863 0.613184 0.612926 0.612926 0.612926 s/sqrt(s+b)=0.684673 nsignal=5415; nwjtes=3197 ; ntop=256
+mupt10 dphijetmet3 ljetpt50 met50 mt0 dphi-pi1.5 1.80575 0.873178 0.526021 0.526021 0.612863 0.612786 0.612529 0.612529 0.612529 s/sqrt(s+b)=0.684572 nsignal=5428; nwjtes=3205 ; ntop=263
+mupt10 dphijetmet3 ljetpt50 met100 mt0 dphi-pi1.5 1.80575 0.873178 0.526021 0.526021 0.612863 0.612786 0.612529 0.612529 0.612529 s/sqrt(s+b)=0.684572 nsignal=5428; nwjtes=3205 ; ntop=263
+mupt10 dphijetmet1.5 ljetpt50 met50 mt0 dphi-pi1.5 1.80575 0.873178 0.526021 0.526021 0.612863 0.61248 0.612222 0.612222 0.612222 s/sqrt(s+b)=0.684246 nsignal=5395; nwjtes=3178 ; ntop=254
+
+=> mupt<10, ljetpt>50, met>50 or 100, mt>0 (=>no cut), dphi_mumet>1.5, dphijetmet<1.5,2,3 (low dependency cut). s/sqrt(s+b)=0.68
+
+### Deltam=5:
+mupt10 dphijetmet1.5 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.92845 0.612586 0.612586 1.44347 1.44556 1.44501 1.44501 1.44501 s/sqrt(s+b)=2.0898 nsignal=13038; nwjtes=1983 ; ntop=158
+mupt10 dphijetmet1.5 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.92845 0.612586 0.612586 1.44347 1.44556 1.44501 1.44501 1.44501 s/sqrt(s+b)=2.0898 nsignal=13038; nwjtes=1983 ; ntop=158
+mupt10 dphijetmet2 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.92845 0.612586 0.612586 1.44347 1.4452 1.44466 1.44466 1.44466 s/sqrt(s+b)=2.088 nsignal=13075; nwjtes=1998 ; ntop=159
+mupt10 dphijetmet2 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.92845 0.612586 0.612586 1.44347 1.4452 1.44466 1.44466 1.44466 s/sqrt(s+b)=2.088 nsignal=13075; nwjtes=1998 ; ntop=159
+mupt10 dphijetmet3 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.92845 0.612586 0.612586 1.44347 1.44316 1.44262 1.44262 1.44262 s/sqrt(s+b)=2.08561 nsignal=13093; nwjtes=2002 ; ntop=164
+
+=> basically same cuts as above. s/sqrt(s+b)=2.09
+
+### Deltam=3:
+mupt8 dphijetmet1.5 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.947807 0.608237 0.608237 2.33678 2.34012 2.33898 2.33898 2.33898 s/sqrt(s+b)=3.784 nsignal=18093; nwjtes=1154 ; ntop=94
+mupt8 dphijetmet1.5 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.947807 0.608237 0.608237 2.33678 2.34012 2.33898 2.33898 2.33898 s/sqrt(s+b)=3.784 nsignal=18093; nwjtes=1154 ; ntop=94
+mupt8 dphijetmet2 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.947807 0.608237 0.608237 2.33678 2.33997 2.33883 2.33883 2.33883 s/sqrt(s+b)=3.78202 nsignal=18146; nwjtes=1163 ; ntop=94
+mupt8 dphijetmet2 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.947807 0.608237 0.608237 2.33678 2.33997 2.33883 2.33883 2.33883 s/sqrt(s+b)=3.78202 nsignal=18146; nwjtes=1163 ; ntop=94
+mupt8 dphijetmet3 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.947807 0.608237 0.608237 2.33678 2.33647 2.33523 2.33523 2.33523 s/sqrt(s+b)=3.77614 nsignal=18165; nwjtes=1164 ; ntop=98
+
+=> mupt<8 (tighter cut on muon pt), dphi_mumet>2.0 (larger cut on backtoback mu-met). s/sqrt(s+b)=3.78
+
+### Deltam=2:
+mupt6 dphijetmet3 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.961886 0.520189 0.520189 2.97567 2.97504 2.97411 2.97411 2.97411 s/sqrt(s+b)=4.81967 nsignal=16310; nwjtes=569 ; ntop=49
+mupt6 dphijetmet3 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.961886 0.520189 0.520189 2.97567 2.97504 2.97411 2.97411 2.97411 s/sqrt(s+b)=4.81967 nsignal=16310; nwjtes=569 ; ntop=49
+mupt6 dphijetmet3 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.961886 0.520189 0.520189 2.97567 2.97504 2.97411 2.97411 2.97411 s/sqrt(s+b)=4.81967 nsignal=16310; nwjtes=569 ; ntop=49
+mupt6 dphijetmet3 ljetpt50 met100 mt0 dphi-pi2 1.80575 0.961886 0.520189 0.520189 2.97567 2.97504 2.97411 2.97411 2.97411 s/sqrt(s+b)=4.81967 nsignal=16310; nwjtes=569 ; ntop=49
+mupt6 dphijetmet1.5 ljetpt50 met50 mt0 dphi-pi2 1.80575 0.961886 0.520189 0.520189 2.97567 2.97603 2.97526 2.97526 2.97526 s/sqrt(s+b)=4.8154 nsignal=16245; nwjtes=565 ; ntop=49
+
+=> mupt<6. s/sqrt(s+b)=4.82 
+
+### Deltam=1:
+mupt4 dphijetmet3 ljetpt100 met200 mt0 dphi-pi2 1.80575 0.962975 0.190593 0.190593 1.84091 1.84058 1.8335 2.21044 2.21044 s/sqrt(s+b)=4.01149 nsignal=2404; nwjtes=17 ; ntop=1
+mupt4 dphijetmet2 ljetpt100 met200 mt0 dphi-pi2 1.80575 0.962975 0.190593 0.190593 1.84091 1.84024 1.83314 2.21044 2.21044 s/sqrt(s+b)=4.01149 nsignal=2404; nwjtes=17 ; ntop=1
+mupt4 dphijetmet1.5 ljetpt100 met200 mt0 dphi-pi2 1.80575 0.962975 0.190593 0.190593 1.84091 1.83669 1.82695 2.20356 2.20356 s/sqrt(s+b)=3.99881 nsignal=2396; nwjtes=17 ; ntop=1
+mupt4 dphijetmet1 ljetpt100 met200 mt0 dphi-pi2 1.80575 0.962975 0.190593 0.190593 1.84091 1.82657 1.81092 2.17773 2.17773 s/sqrt(s+b)=3.95599 nsignal=2369; nwjtes=17 ; ntop=1
+mupt4 dphijetmet3 ljetpt50 met200 mt0 dphi-pi2 1.80575 0.962975 0.190593 0.190593 1.84091 1.84058 1.84058 2.20708 2.20708 s/sqrt(s+b)=3.90647 nsignal=2424; nwjtes=17 ; ntop=2
+
+=> mupt<4, ljetpt>100,met>200.  s/sqrt(s+b)=4.01 
+
+======================================================================================================
+
+Plots summarizing distributions to be uploaded.
+
+
+
+
+
+
+
+
+
+
